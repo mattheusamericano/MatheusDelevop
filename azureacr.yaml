@@ -28,16 +28,39 @@ runs:
 
     - name: Get Image Digest and Import
       run: |
-        # Obter o digest da imagem de origem
-        SOURCE_DIGEST=$(az acr repository show-manifests --name ${{ inputs.origin_acr_name }} --repository ${{ env.image_dir }} --query "[?tags[0]=='${{ env.image_tag }}'].digest" -o tsv)
+        echo "Searching for image: ${{ env.image_dir }}:${{ env.image_tag }}"
+        
+        # Tentar múltiplas abordagens para obter o digest
+        SOURCE_DIGEST=""
+        
+        # Método 1: Usando az acr repository show-manifests
+        echo "Trying method 1: az acr repository show-manifests"
+        SOURCE_DIGEST=$(az acr repository show-manifests --name ${{ inputs.origin_acr_name }} --repository ${{ env.image_dir }} --query "[?contains(tags, '${{ env.image_tag }}')].digest" -o tsv 2>/dev/null || echo "")
+        
+        # Método 2: Se não encontrou, tentar com manifest list-metadata
+        if [ -z "$SOURCE_DIGEST" ]; then
+          echo "Trying method 2: az acr manifest list-metadata"
+          SOURCE_DIGEST=$(az acr manifest list-metadata --name ${{ inputs.origin_acr_name }} --repository ${{ env.image_dir }} --query "[?contains(tags, '${{ env.image_tag }}')].digest" -o tsv 2>/dev/null || echo "")
+        fi
+        
+        # Método 3: Se ainda não encontrou, tentar listagem simples
+        if [ -z "$SOURCE_DIGEST" ]; then
+          echo "Trying method 3: Direct repository show"
+          SOURCE_DIGEST=$(az acr repository show --name ${{ inputs.origin_acr_name }} --repository ${{ env.image_dir }} --query "manifests[?contains(tags, '${{ env.image_tag }}')].digest" -o tsv 2>/dev/null || echo "")
+        fi
         
         # Verificar se o digest foi encontrado
         if [ -z "$SOURCE_DIGEST" ]; then
           echo "Error: Could not find digest for image ${{ env.image_dir }}:${{ env.image_tag }}"
+          echo "Available tags in repository:"
+          az acr repository show-tags --name ${{ inputs.origin_acr_name }} --repository ${{ env.image_dir }} --output table
           exit 1
         fi
         
+        echo "Found digest: $SOURCE_DIGEST"
+        
         # Fazer o import usando o digest
+        echo "Starting import with digest..."
         az acr import --name ${{ inputs.destination_acr_name }} --source ${{ inputs.origin_acr_name }}.azurecr.io/${{ env.image_dir }}@$SOURCE_DIGEST --image ${{ env.image_dir }}:${{ env.image_tag }}
         
         # Verificar se o import foi bem-sucedido
