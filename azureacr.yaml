@@ -10,12 +10,6 @@ inputs:
   origin_acr_name:
     required: true
     type: string
-  image_dir:
-    required: true
-    type: string
-  image_tag:
-    required: true
-    type: string
 
 runs:
   using: composite
@@ -35,12 +29,20 @@ runs:
     - name: Get Image Digest and Import
       run: |
         # Obter o digest da imagem de origem
-        SOURCE_DIGEST=$(az acr repository show-manifests --name ${{ inputs.origin_acr_name }} --repository ${{ inputs.image_dir }} --query "[?tags[0]=='${{ inputs.image_tag }}'].digest" -o tsv)
+        SOURCE_DIGEST=$(az acr repository show-manifests --name ${{ inputs.origin_acr_name }} --repository ${{ env.image_dir }} --query "[?tags[0]=='${{ env.image_tag }}'].digest" -o tsv)
+        
+        # Verificar se o digest foi encontrado
+        if [ -z "$SOURCE_DIGEST" ]; then
+          echo "Error: Could not find digest for image ${{ env.image_dir }}:${{ env.image_tag }}"
+          exit 1
+        fi
         
         # Fazer o import usando o digest
-        az acr import --name ${{ inputs.destination_acr_name }} --source ${{ inputs.origin_acr_name }}.azurecr.io/${{ inputs.image_dir }}@$SOURCE_DIGEST --image ${{ inputs.image_dir }}:${{ inputs.image_tag }}
+        az acr import --name ${{ inputs.destination_acr_name }} --source ${{ inputs.origin_acr_name }}.azurecr.io/${{ env.image_dir }}@$SOURCE_DIGEST --image ${{ env.image_dir }}:${{ env.image_tag }}
         
         # Verificar se o import foi bem-sucedido
-        echo "Import completed for image: ${{ inputs.image_dir }}:${{ inputs.image_tag }}"
+        echo "Import completed successfully!"
+        echo "Image: ${{ env.image_dir }}:${{ env.image_tag }}"
         echo "Source digest: $SOURCE_DIGEST"
+        echo "Destination: ${{ inputs.destination_acr_name }}.azurecr.io/${{ env.image_dir }}:${{ env.image_tag }}"
       shell: bash
