@@ -1,0 +1,40 @@
+name: ACR Login and Push
+description: 'Login and Push in the Docker Registry'
+inputs:
+  destination_acr_name:
+    required: true
+    type: string
+  client_id_runner:
+    required: true
+    type: string
+  origin_acr_name:
+    required: true
+    type: string
+
+runs:
+  using: composite
+  steps:
+    - name: Login on Azure
+      run: |
+        az login --identity --client-id ${{ inputs.client_id_runner }}
+      shell: bash
+
+    - name: Connecting on destination Registry
+      run: |
+        USERNAME="00000000-0000-0000-0000-000000000000"
+        TOKEN=$(az acr login --name ${{ inputs.destination_acr_name }} --expose-token --output tsv --query accessToken)
+        sudo docker login ${{ inputs.destination_acr_name }}.azurecr.io --username $USERNAME --password-stdin <<< $TOKEN
+      shell: bash
+
+    - name: Get Image Digest and Import
+      run: |
+        # Obter o digest da imagem de origem
+        SOURCE_DIGEST=$(az acr repository show-manifests --name ${{ inputs.origin_acr_name }} --repository ${{ env.IMAGE_DIR }} --query "[?tags[0]=='${{ env.IMAGE_TAG }}'].digest" -o tsv)
+        
+        # Fazer o import usando o digest
+        az acr import --name ${{ inputs.destination_acr_name }} --source ${{ inputs.origin_acr_name }}.azurecr.io/${{ env.IMAGE_DIR }}@$SOURCE_DIGEST --image ${{ env.IMAGE_DIR }}:${{ env.IMAGE_TAG }}
+        
+        # Verificar se o import foi bem-sucedido
+        echo "Import completed for image: ${{ env.IMAGE_DIR }}:${{ env.IMAGE_TAG }}"
+        echo "Source digest: $SOURCE_DIGEST"
+      shell: bash
