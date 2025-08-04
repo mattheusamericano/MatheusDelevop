@@ -20,3 +20,17 @@ Foram definidos os seguintes critérios de segmentação:
 	•	Criação de nodepool específico para troubleshooting e instalação de addons, com o nome padrão:
 	•	infra
 	•	Possibilidade de utilização de IP privado ou IP público para exposição do frontend, conforme a necessidade de cada solução.
+
+
+
+
+zones = (
+  each.value.sku_name == "Premium"
+  ? (
+      length(try(each.value.apim_availabilityzone, [])) > 0
+      ? each.value.apim_availabilityzone
+      : ["1", "2"]
+    )
+  : null
+)
+ 
