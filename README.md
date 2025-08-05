@@ -33,4 +33,18 @@ zones = (
     )
   : null
 )
+
+
+
+
+
+zones = (
+    # Se apim_availabilityzone foi definido, usa ele
+    try(each.value.apim_availabilityzone, null) != null ? each.value.apim_availabilityzone :
+    # Se é Premium, usa ["1", "2"] por padrão
+    each.value.sku_name == "Premium" ? ["1", "2"] :
+    # Para outros tiers, usa apenas ["1"]
+    ["1"]
+  )
+
  
