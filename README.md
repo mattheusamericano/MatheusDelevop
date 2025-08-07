@@ -1,50 +1,31 @@
 # MatheusDelevop
-## salvando um novo titulo
+## salvando um novo 
 
+2. Criação do Integration Runtime (IR)
+A seguir, são apresentados os passos para criação de um Integration Runtime do tipo Azure:
 
-Documento Informativo – Configuração de Nodepools em Clusters AKS
+Passo 1: Acesse a seção 'Integration runtimes' no menu lateral esquerdo e clique em '+ New'.
 
-Data: 04/08/2025
-Responsável: [Nome do responsável ou equipe, se desejar incluir]
+Passo 2: Selecione o tipo 'Azure, Self-Hosted'.
 
-1. Objetivo
+Passo 3: Escolha 'Azure' como ambiente de rede para atividades de fluxo de dados, movimentação e execução de pipelines.
 
-Informar sobre os padrões de configuração adotados para os nodepools em clusters AKS, utilizados nos ambientes corporativos.
+Passo 4: Defina o nome do runtime e deixe a região como 'Auto Resolve'.
 
-2. Estrutura dos Nodepools
+Passo 5: Configure a rede virtual (se necessário), ativando a opção de 'Interactive authoring'.
 
-Foram definidos os seguintes critérios de segmentação:
-	•	Criação de nodepools específicos por sistema, com segregação entre backend e frontend:
-	•	backend = app+sigla-do-projeto
-	•	frontend = website+sigla-do-projeto
-	•	Criação de nodepool específico para troubleshooting e instalação de addons, com o nome padrão:
-	•	infra
-	•	Possibilidade de utilização de IP privado ou IP público para exposição do frontend, conforme a necessidade de cada solução.
+Passo 6: Ajuste os parâmetros de performance, como o número de nós e tempo de vida do runtime.
 
+3. Configuração dos Linked Services
+Após o IR estar configurado, você pode criar os Linked Services. Os exemplos a seguir ilustram a criação de três tipos diferentes:
 
+Exemplo 1: Azure Key Vault: configure o nome, método de autenticação e subscrição.
 
+Exemplo 2: Azure Blob Storage: defina o nome do serviço, selecione o runtime, identidade gerenciada e conta de armazenamento.
 
-zones = (
-  each.value.sku_name == "Premium"
-  ? (
-      length(try(each.value.apim_availabilityzone, [])) > 0
-      ? each.value.apim_availabilityzone
-      : ["1", "2"]
-    )
-  : null
-)
+Exemplo 3: Azure SQL Database: informe nome, versão, runtime, servidor e nome do banco de dados.
 
-
-
-
-
-zones = (
-    # Se apim_availabilityzone foi definido, usa ele
-    try(each.value.apim_availabilityzone, null) != null ? each.value.apim_availabilityzone :
-    # Se é Premium, usa ["1", "2"] por padrão
-    each.value.sku_name == "Premium" ? ["1", "2"] :
-    # Para outros tiers, usa apenas ["1"]
-    ["1"]
-  )
+4. Publicação das Alterações
+Após a criação dos Linked Services, clique em 'Publish' para aplicar as alterações no ambiente ativo do Data Factory.
 
  
