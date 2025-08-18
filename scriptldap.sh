@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # ==================================================================
 # Script para inclusao de servidores no LDAP
 # Automated LDAP Server Configuration Script
