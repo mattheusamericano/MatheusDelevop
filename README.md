@@ -1,31 +1,30 @@
-# MatheusDelevop
-## salvando um novo 
 
-2. Criação do Integration Runtime (IR)
-A seguir, são apresentados os passos para criação de um Integration Runtime do tipo Azure:
-
-Passo 1: Acesse a seção 'Integration runtimes' no menu lateral esquerdo e clique em '+ New'.
-
-Passo 2: Selecione o tipo 'Azure, Self-Hosted'.
-
-Passo 3: Escolha 'Azure' como ambiente de rede para atividades de fluxo de dados, movimentação e execução de pipelines.
-
-Passo 4: Defina o nome do runtime e deixe a região como 'Auto Resolve'.
-
-Passo 5: Configure a rede virtual (se necessário), ativando a opção de 'Interactive authoring'.
-
-Passo 6: Ajuste os parâmetros de performance, como o número de nós e tempo de vida do runtime.
-
-3. Configuração dos Linked Services
-Após o IR estar configurado, você pode criar os Linked Services. Os exemplos a seguir ilustram a criação de três tipos diferentes:
-
-Exemplo 1: Azure Key Vault: configure o nome, método de autenticação e subscrição.
-
-Exemplo 2: Azure Blob Storage: defina o nome do serviço, selecione o runtime, identidade gerenciada e conta de armazenamento.
-
-Exemplo 3: Azure SQL Database: informe nome, versão, runtime, servidor e nome do banco de dados.
-
-4. Publicação das Alterações
-Após a criação dos Linked Services, clique em 'Publish' para aplicar as alterações no ambiente ativo do Data Factory.
-
- 
+###############################################################
+############### Get Events ###############
+LAST SEEN   TYPE      REASON              OBJECT                                          MESSAGE
+55m         Normal    ScalingReplicaSet   deployment/siacx-frontend-curadoria             Scaled up replica set siacx-frontend-curadoria-c5b798d7b to 1
+55m         Normal    SuccessfulCreate    replicaset/siacx-frontend-curadoria-c5b798d7b   Created pod: siacx-frontend-curadoria-c5b798d7b-jbhks
+55m         Warning   FailedScheduling    pod/siacx-frontend-curadoria-c5b798d7b-jbhks    0/3 nodes are available: 1 node(s) had untolerated taint {CriticalAddonsOnly: true}, 2 Insufficient cpu. preemption: 0/3 nodes are available: 1 Preemption is not helpful for scheduling, 2 No preemption victims found for incoming pod.
+45m         Normal    NotTriggerScaleUp   pod/siacx-frontend-curadoria-c5b798d7b-jbhks    pod didn't trigger scale-up: 1 node(s) had untolerated taint {CriticalAddonsOnly: true}, 1 max node group size reached
+50m         Normal    NotTriggerScaleUp   pod/siacx-frontend-curadoria-c5b798d7b-jbhks    pod didn't trigger scale-up: 1 max node group size reached, 1 node(s) had untolerated taint {CriticalAddonsOnly: true}
+45m         Warning   FailedScheduling    pod/siacx-frontend-curadoria-c5b798d7b-jbhks    0/3 nodes are available: 1 node(s) had untolerated taint {CriticalAddonsOnly: true}, 2 Insufficient cpu. preemption: 0/3 nodes are available: 1 Preemption is not helpful for scheduling, 2 No preemption victims found for incoming pod.
+5m24s       Normal    ScalingReplicaSet   deployment/siacx-frontend-curadoria             Scaled down replica set siacx-frontend-curadoria-c5b798d7b to 0 from 1
+40m         Normal    SuccessfulDelete    replicaset/siacx-frontend-curadoria-c5b798d7b   Deleted pod: siacx-frontend-curadoria-c5b798d7b-jbhks
+40m         Warning   FailedScheduling    pod/siacx-frontend-curadoria-c5b798d7b-jbhks    skip schedule deleting pod: siacx-frontend-curadoria/siacx-frontend-curadoria-c5b798d7b-jbhks
+40m         Normal    SuccessfulCreate    replicaset/siacx-frontend-curadoria-c5b798d7b   Created pod: siacx-frontend-curadoria-c5b798d7b-gfz4p
+5m14s       Normal    ScalingReplicaSet   deployment/siacx-frontend-curadoria             Scaled up replica set siacx-frontend-curadoria-c5b798d7b to 1 from 0
+40m         Warning   FailedScheduling    pod/siacx-frontend-curadoria-c5b798d7b-gfz4p    0/3 nodes are available: 1 node(s) had untolerated taint {CriticalAddonsOnly: true}, 2 Insufficient cpu. preemption: 0/3 nodes are available: 1 Preemption is not helpful for scheduling, 2 No preemption victims found for incoming pod.
+15m         Normal    NotTriggerScaleUp   pod/siacx-frontend-curadoria-c5b798d7b-gfz4p    pod didn't trigger scale-up: 1 node(s) had untolerated taint {CriticalAddonsOnly: true}, 1 max node group size reached
+15m         Warning   FailedScheduling    pod/siacx-frontend-curadoria-c5b798d7b-gfz4p    0/3 nodes are available: 1 node(s) had untolerated taint {CriticalAddonsOnly: true}, 2 Insufficient cpu. preemption: 0/3 nodes are available: 1 Preemption is not helpful for scheduling, 2 No preemption victims found for incoming pod.
+13m         Warning   FailedScheduling    pod/siacx-frontend-curadoria-c5b798d7b-gfz4p    skip schedule deleting pod: siacx-frontend-curadoria/siacx-frontend-curadoria-c5b798d7b-gfz4p
+13m         Normal    SuccessfulDelete    replicaset/siacx-frontend-curadoria-c5b798d7b   Deleted pod: siacx-frontend-curadoria-c5b798d7b-gfz4p
+13m         Warning   FailedScheduling    pod/siacx-frontend-curadoria-c5b798d7b-vd22b    0/3 nodes are available: 1 node(s) had untolerated taint {CriticalAddonsOnly: true}, 2 Insufficient cpu. preemption: 0/3 nodes are available: 1 Preemption is not helpful for scheduling, 2 No preemption victims found for incoming pod.
+13m         Normal    SuccessfulCreate    replicaset/siacx-frontend-curadoria-c5b798d7b   Created pod: siacx-frontend-curadoria-c5b798d7b-vd22b
+8m44s       Normal    NotTriggerScaleUp   pod/siacx-frontend-curadoria-c5b798d7b-vd22b    pod didn't trigger scale-up: 1 node(s) had untolerated taint {CriticalAddonsOnly: true}, 1 max node group size reached
+8m40s       Warning   FailedScheduling    pod/siacx-frontend-curadoria-c5b798d7b-vd22b    0/3 nodes are available: 1 node(s) had untolerated taint {CriticalAddonsOnly: true}, 2 Insufficient cpu. preemption: 0/3 nodes are available: 1 Preemption is not helpful for scheduling, 2 No preemption victims found for incoming pod.
+5m23s       Warning   FailedScheduling    pod/siacx-frontend-curadoria-c5b798d7b-vd22b    skip schedule deleting pod: siacx-frontend-curadoria/siacx-frontend-curadoria-c5b798d7b-vd22b
+5m24s       Normal    SuccessfulDelete    replicaset/siacx-frontend-curadoria-c5b798d7b   Deleted pod: siacx-frontend-curadoria-c5b798d7b-vd22b
+5m14s       Normal    SuccessfulCreate    replicaset/siacx-frontend-curadoria-c5b798d7b   Created pod: siacx-frontend-curadoria-c5b798d7b-zx9d2
+5m13s       Warning   FailedScheduling    pod/siacx-frontend-curadoria-c5b798d7b-zx9d2    0/3 nodes are available: 1 node(s) had untolerated taint {CriticalAddonsOnly: true}, 2 Insufficient cpu. preemption: 0/3 nodes are available: 1 Preemption is not helpful for scheduling, 2 No preemption victims found for incoming pod.
+2s          Normal    NotTriggerScaleUp   pod/siacx-frontend-curadoria-c5b798d7b-zx9d2    pod didn't trigger scale-up: 1 node(s) had untolerated taint {CriticalAddonsOnly: true}, 1 max node group size reached
+10s         Warning   FailedScheduling    pod/siacx-frontend-curadoria-c5b798d7b-zx9d2    0/3 nodes are available: 1 node(s) had untolerated taint {CriticalAddonsOnly: true}, 2 Insufficient cpu. preemption: 0/3 nodes are available: 1 Preemption is not helpful for scheduling, 2 No preemption victims found for incoming pod.
