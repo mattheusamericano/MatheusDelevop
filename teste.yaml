@@ -1,1 +1,334 @@
-ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDYCedKIgtUCsqI4MDvGsV9T63e199PZIkq9MinrnalSs8FMyekdAYFQlAwwkc89ZSu6GaQ/iCKZgqGeAhogYYqQ0ip0ePPwNQyQIWWrAcznQ05Jb0VZ2fp3LbAnKyFcmUMXZ9nl/zM+yLfkS+cn1L6xD8DD6tk7O8m0843AddvG5qVj/fICaPix2+02Jw7cNMp3p9/tQ1VsvhLHgh/MiQaflOBWxyh4xBmZPwxu0mKKAdRReuIscVgD98PyEIF1XfTKXFkmEPKeqGA0Z6vNNJZIoJgNUB9oVSFOd6P6k8zkdgr2+KooJeLwYfkmMF5SrKtWFidIzUUoe2sC9E99e9oNRW7LeA7SwrVNmobt+kCGl1SByC3+zqifcyPf/2AFTquRkHnrUxRudxkXPk4nBYzgmAWrJajMKEGqoZSA7KNaHMiF6oWLoT0UHLzfoKqErcSZgW1/+QKBXDe6DX0zoq2CkFpQRoR1EGL0ELMIaYSUvjw9My2Ss2jQGMRLsJn+zU= matheusamericano@NBMATHEUS
+###########################################
+#INPUTS FROM DEAFULT PIPES TO EXTENDS PIPE#
+###########################################
+parameters:
+- name: Stack
+  type: string
+- name: AgentType
+  type: string
+
+##################################
+#PIPELINES RESOURCES REPOSITORIES#
+##################################
+resources:
+  repositories:
+
+    - repository: ado-pipelines-templates
+      type: git
+      name: azurerm/ado-pipelines-templates
+      ref: refs/heads/main
+
+    - repository: tf-modules-for-azure
+      type: git
+      name: azurerm/tf-modules-for-azure
+      ref: refs/heads/main
+    
+    - repository: tf-stacks-for-azure
+      type: git
+      name: Suporte-IaC/tf-stacks-for-azure
+      ref: refs/heads/main
+
+#############################
+#STARTED MULTISTAGE PIPELINE#
+#############################
+stages:
+
+#############################
+#CODE TEST/ANALYSIS/SCANNING#
+#############################
+- stage: CodeScan
+  condition: and(succeeded(), in(variables['Build.Reason'], 'Manual'), eq(variables['SYSTEM.STAGEATTEMPT'], '1'), or(eq(variables['Build.SourceBranch'], 'refs/heads/nprd'), eq(variables['Build.SourceBranch'], 'refs/heads/des'), eq(variables['Build.SourceBranch'], 'refs/heads/sandbox'), eq(variables['Build.SourceBranch'], 'refs/heads/hmp'), eq(variables['Build.SourceBranch'], 'refs/heads/tqs'), eq(variables['Build.SourceBranch'], 'refs/heads/canary'), eq(variables['Build.SourceBranch'], 'refs/heads/pilot'), eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.SourceBranch'], 'refs/heads/dr'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-nprd'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-des'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-hmp'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-tqs'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-canary'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-pilot'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-prd'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-dr') ))    
+  displayName: 'Code Scan'
+  jobs:
+    - job: "CodeScan"
+      pool:
+        ${{ if eq(parameters.AgentType, 'microsoft') }}:
+          vmImage: $(vmImage)
+        ${{ if eq(parameters.AgentType, 'selfhosted') }}:
+          name: $(vmImage)
+      steps:
+      - checkout: self
+      - checkout: tf-modules-for-azure
+      - checkout: tf-stacks-for-azure
+      - template: codescan/checkov_terraform_scan.yaml@ado-pipelines-templates
+
+################
+#TERRAFORM PLAN#
+################
+- ${{ if or(eq(variables['Build.SourceBranch'], 'refs/heads/nprd'), eq(variables['Build.SourceBranch'], 'refs/heads/des'), eq(variables['Build.SourceBranch'], 'refs/heads/sandbox'), eq(variables['Build.SourceBranch'], 'refs/heads/hmp'), eq(variables['Build.SourceBranch'], 'refs/heads/tqs'), eq(variables['Build.SourceBranch'], 'refs/heads/canary'), eq(variables['Build.SourceBranch'], 'refs/heads/pilot'), eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.SourceBranch'], 'refs/heads/dr') ) }}:
+  - stage: TerraformPlan
+    dependsOn: CodeScan
+    condition: and(succeeded(), eq(variables['SYSTEM.STAGEATTEMPT'], '1'), or(eq(variables['Build.SourceBranch'], 'refs/heads/nprd'), eq(variables['Build.SourceBranch'], 'refs/heads/des'), eq(variables['Build.SourceBranch'], 'refs/heads/sandbox'), eq(variables['Build.SourceBranch'], 'refs/heads/hmp'), eq(variables['Build.SourceBranch'], 'refs/heads/tqs'), eq(variables['Build.SourceBranch'], 'refs/heads/canary'), eq(variables['Build.SourceBranch'], 'refs/heads/pilot'), eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.SourceBranch'], 'refs/heads/dr') ) )
+    displayName: 'Plan'
+    jobs:
+    - job: TerraformPlan
+      pool:
+        ${{ if eq(parameters.AgentType, 'microsoft') }}:
+          vmImage: $(vmImage)
+        ${{ if eq(parameters.AgentType, 'selfhosted') }}:
+          name: $(vmImage)
+      steps:
+      - checkout: self
+      - checkout: tf-modules-for-azure
+      - checkout: tf-stacks-for-azure
+      - template: terraform/terraform_copy_artifacts.yaml@ado-pipelines-templates
+        parameters:
+          Stack_Folder_Name: ${{ parameters.Stack }}
+      - template: terraform/terraform-ado-sc.yaml@ado-pipelines-templates
+        parameters:
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/dr') }}:
+            serviceConnection: $(Azure_serviceConnection_Dr)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+            serviceConnection: $(Azure_serviceConnection_Prd)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/pilot') }}:
+            serviceConnection: $(Azure_serviceConnection_Pilot)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/canary') }}:
+            serviceConnection: $(Azure_serviceConnection_Canary)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/nprd') }}:
+            serviceConnection: $(Azure_serviceConnection_Nprd)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/tqs') }}:
+            serviceConnection: $(Azure_serviceConnection_Tqs)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/hmp') }}:
+            serviceConnection: $(Azure_serviceConnection_Hmp)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/sandbox') }}:
+            serviceConnection: $(Azure_serviceConnection_Sandbox)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/des') }}:
+            serviceConnection: $(Azure_serviceConnection_Des)
+      - template: terraform/terraform_replacetokens.yaml@ado-pipelines-templates
+      - template: terraform/terraform_version.yaml@ado-pipelines-templates
+      - template: terraform/terraform_plan.yaml@ado-pipelines-templates
+        parameters:
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/dr') }}:
+            TF_WORKSPACE: "dr"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+            TF_WORKSPACE: "prd"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/pilot') }}:
+            TF_WORKSPACE: "pilot"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/canary') }}:
+            TF_WORKSPACE: "canary"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/nprd') }}:
+            TF_WORKSPACE: "nprd"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/tqs') }}:
+            TF_WORKSPACE: "tqs"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/hmp') }}:
+            TF_WORKSPACE: "hmp"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/sandbox') }}:
+            TF_WORKSPACE: "sandbox"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/des') }}:
+            TF_WORKSPACE: "des"
+#      - template: terraform/terraform_azure_cost.yaml@ado-pipelines-templates
+#        parameters:
+#          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/dr') }}:
+#            serviceConnection: $(Azure_serviceConnection_Dr)
+#          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+#            serviceConnection: $(Azure_serviceConnection_Prd)
+#          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/pilot') }}:
+#            serviceConnection: $(Azure_serviceConnection_Pilot)
+#          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/canary') }}:
+#            serviceConnection: $(Azure_serviceConnection_Canary)
+#          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/nprd') }}:
+#            serviceConnection: $(Azure_serviceConnection_Nprd)
+#          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/tqs') }}:
+#            serviceConnection: $(Azure_serviceConnection_Tqs)
+#          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/hmp') }}:
+#            serviceConnection: $(Azure_serviceConnection_Hmp)
+#          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/sandbox') }}:
+#            serviceConnection: $(Azure_serviceConnection_Sandbox)
+#          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/des') }}:
+#            serviceConnection: $(Azure_serviceConnection_Des)
+      - template: terraform/terraform_publish_artifacts.yaml@ado-pipelines-templates
+
+#################
+#TERRAFORM APPLY#
+#################
+- ${{ if or(eq(variables['Build.SourceBranch'], 'refs/heads/nprd'), eq(variables['Build.SourceBranch'], 'refs/heads/des'), eq(variables['Build.SourceBranch'], 'refs/heads/sandbox'), eq(variables['Build.SourceBranch'], 'refs/heads/hmp'), eq(variables['Build.SourceBranch'], 'refs/heads/tqs'), eq(variables['Build.SourceBranch'], 'refs/heads/canary'), eq(variables['Build.SourceBranch'], 'refs/heads/pilot'), eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['Build.SourceBranch'], 'refs/heads/dr') ) }}:
+  - stage: TerraformApply
+    dependsOn: TerraformPlan
+    condition: and(succeeded(), eq(variables['SYSTEM.STAGEATTEMPT'], '1') )
+    displayName: 'Apply'
+    jobs:
+    - deployment: 'TerraformApply'
+      pool:
+        ${{ if eq(parameters.AgentType, 'microsoft') }}:
+          vmImage: $(vmImage)
+        ${{ if eq(parameters.AgentType, 'selfhosted') }}:
+          name: $(vmImage)
+      condition: succeeded()
+      environment: "iac-tf-apply"
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - template: terraform/terraform_extract_artifacts.yaml@ado-pipelines-templates
+            - template: terraform/terraform-ado-sc.yaml@ado-pipelines-templates
+              parameters:
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/dr') }}:
+                  serviceConnection: $(Azure_serviceConnection_Dr)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+                  serviceConnection: $(Azure_serviceConnection_Prd)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/pilot') }}:
+                  serviceConnection: $(Azure_serviceConnection_Pilot)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/canary') }}:
+                  serviceConnection: $(Azure_serviceConnection_Canary)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/nprd') }}:
+                  serviceConnection: $(Azure_serviceConnection_Nprd)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/tqs') }}:
+                  serviceConnection: $(Azure_serviceConnection_Tqs)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/hmp') }}:
+                  serviceConnection: $(Azure_serviceConnection_Hmp)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/sandbox') }}:
+                  serviceConnection: $(Azure_serviceConnection_Sandbox)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/des') }}:
+                  serviceConnection: $(Azure_serviceConnection_Des)
+            - template: terraform/terraform_version.yaml@ado-pipelines-templates
+            - template: terraform/terraform_apply.yaml@ado-pipelines-templates
+              parameters:
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/dr') }}:
+                  TF_WORKSPACE: "dr"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+                  TF_WORKSPACE: "prd"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/pilot') }}:
+                  TF_WORKSPACE: "pilot"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/canary') }}:
+                  TF_WORKSPACE: "canary"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/nprd') }}:
+                  TF_WORKSPACE: "nprd"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/tqs') }}:
+                  TF_WORKSPACE: "tqs"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/hmp') }}:
+                  TF_WORKSPACE: "hmp"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/sandbox') }}:
+                  TF_WORKSPACE: "sandbox"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/des') }}:
+                  TF_WORKSPACE: "des"
+#---
+
+########################
+#TERRAFORM PLAN DESTROY#
+########################
+- ${{ if or(eq(variables['Build.SourceBranch'], 'refs/heads/destroy-nprd'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-des'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-sandbox'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-hmp'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-tqs'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-canary'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-pilot'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-prd'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-dr') ) }}:
+  - stage: TerraformPlanDestroy
+    dependsOn: CodeScan
+    condition: and(succeeded(), eq(variables['SYSTEM.STAGEATTEMPT'], '1'), or(eq(variables['Build.SourceBranch'], 'refs/heads/destroy-nprd'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-des'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-sandbox'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-hmp'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-tqs'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-canary'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-pilot'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-prd'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-dr') ))
+    displayName: 'Plan Destroy'
+    jobs:
+    - job: TerraformPlanDestroy
+      pool:
+        ${{ if eq(parameters.AgentType, 'microsoft') }}:
+          vmImage: $(vmImage)
+        ${{ if eq(parameters.AgentType, 'selfhosted') }}:
+          name: $(vmImage)
+      steps:
+      - checkout: self
+      - checkout: tf-modules-for-azure
+      - checkout: tf-stacks-for-azure
+      - template: terraform/terraform_copy_artifacts.yaml@ado-pipelines-templates
+        parameters:
+          Stack_Folder_Name: ${{ parameters.Stack }}
+      - template: terraform/terraform-ado-sc.yaml@ado-pipelines-templates
+        parameters:
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-dr') }}:
+            serviceConnection: $(Azure_serviceConnection_Dr)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-prd') }}:
+            serviceConnection: $(Azure_serviceConnection_Prd)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-pilot') }}:
+            serviceConnection: $(Azure_serviceConnection_Pilot)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-canary') }}:
+            serviceConnection: $(Azure_serviceConnection_Canary)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-nprd') }}:
+            serviceConnection: $(Azure_serviceConnection_Nprd)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-tqs') }}:
+            serviceConnection: $(Azure_serviceConnection_Tqs)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-hmp') }}:
+            serviceConnection: $(Azure_serviceConnection_Hmp)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-samdbox') }}:
+            serviceConnection: $(Azure_serviceConnection_Sandbox)
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-des') }}:
+            serviceConnection: $(Azure_serviceConnection_Des)
+      - template: terraform/terraform_replacetokens.yaml@ado-pipelines-templates
+      - template: terraform/terraform_version.yaml@ado-pipelines-templates
+      - template: terraform/terraform_plan_destroy.yaml@ado-pipelines-templates
+        parameters:
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-dr') }}:
+            TF_WORKSPACE: "dr"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-prd') }}:
+            TF_WORKSPACE: "prd"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-pilot') }}:
+            TF_WORKSPACE: "pilot"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-canary') }}:
+            TF_WORKSPACE: "canary"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-nprd') }}:
+            TF_WORKSPACE: "nprd"  
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-tqs') }}:
+            TF_WORKSPACE: "tqs"  
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-hmp') }}:
+            TF_WORKSPACE: "hmp"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-sandbox') }}:
+            TF_WORKSPACE: "sandbox"
+          ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-des') }}:
+            TF_WORKSPACE: "des"
+      - template: terraform/terraform_publish_artifacts.yaml@ado-pipelines-templates
+
+#########################
+#TERRAFORM APPLY DESTROY#
+#########################
+- ${{ if or(eq(variables['Build.SourceBranch'], 'refs/heads/destroy-nprd'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-des'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-sandbox'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-hmp'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-tqs'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-canary'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-pilot'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-prd'), eq(variables['Build.SourceBranch'], 'refs/heads/destroy-dr') ) }}:
+  - stage: TerraformDestroy
+    dependsOn: TerraformPlanDestroy
+    condition: and(succeeded(), eq(variables['SYSTEM.STAGEATTEMPT'], '1') )
+    displayName: 'Apply Destroy'
+    jobs:
+    - deployment: 'TerraformDestroy'
+      pool:
+        ${{ if eq(parameters.AgentType, 'microsoft') }}:
+          vmImage: $(vmImage)
+        ${{ if eq(parameters.AgentType, 'selfhosted') }}:
+          name: $(vmImage)
+      condition: succeeded()
+      environment: "iac-tf-destroy"
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - template: terraform/terraform_extract_artifacts.yaml@ado-pipelines-templates
+            - template: terraform/terraform-ado-sc.yaml@ado-pipelines-templates
+              parameters:
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-dr') }}:
+                  serviceConnection: $(Azure_serviceConnection_Dr)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-prd') }}:
+                  serviceConnection: $(Azure_serviceConnection_Prd)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-pilot') }}:
+                  serviceConnection: $(Azure_serviceConnection_Pilot)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-canary') }}:
+                  serviceConnection: $(Azure_serviceConnection_Canary)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-nprd') }}:
+                  serviceConnection: $(Azure_serviceConnection_Nprd)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-tqs') }}:
+                  serviceConnection: $(Azure_serviceConnection_Tqs)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-hmp') }}:
+                  serviceConnection: $(Azure_serviceConnection_Hmp)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-sandbox') }}:
+                  serviceConnection: $(Azure_serviceConnection_Sandbox)
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-des') }}:
+                  serviceConnection: $(Azure_serviceConnection_Des)
+            - template: terraform/terraform_version.yaml@ado-pipelines-templates
+            - template: terraform/terraform_destroy.yaml@ado-pipelines-templates
+              parameters:
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-dr') }}:
+                  TF_WORKSPACE: "dr"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-prd') }}:
+                  TF_WORKSPACE: "prd"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-pilot') }}:
+                  TF_WORKSPACE: "pilot"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-canary') }}:
+                  TF_WORKSPACE: "canary"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-nprd') }}:
+                  TF_WORKSPACE: "nprd"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-tqs') }}:
+                  TF_WORKSPACE: "tqs"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-hmp') }}:
+                  TF_WORKSPACE: "hmp"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-sandbox') }}:
+                  TF_WORKSPACE: "sandbox"
+                ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/destroy-des') }}:
+                  TF_WORKSPACE: "des"
