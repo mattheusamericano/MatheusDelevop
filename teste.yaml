@@ -1,12 +1,11 @@
 steps:
 - task: Bash@3
   condition: and(succeeded(), not(startsWith(variables['Build.SourceBranch'], 'refs/heads/destroy-')))
-  displayName: "Create RG + COS bucket (with checks)"
+  displayName: "Validate RG + Create COS bucket (with checks)"
   inputs:
     targetType: 'inline'
     script: |
       set -eo pipefail
-
       PROJ_RAW          ="$(project)"
       ENV_RAW           ="$(environment)"
       REGION            ="$(region)"
@@ -14,20 +13,20 @@ steps:
       SERVICE_ENDPOINT  ="$(state_service_endpoint_name)"
       COS_BUCKET        ="$(state_bucket)"
       COS_ENDPOINT_TYPE ="$(state_endpoint_type)"; [ -n "$COS_ENDPOINT_TYPE" ] || COS_ENDPOINT_TYPE="direct"
-
+      
       [ -n "$PROJ_RAW" ]         || { echo "ERRO: 'project' não definido."; exit 1; }
       [ -n "$ENV_RAW" ]          || { echo "ERRO: 'environment' não definido."; exit 1; }
       [ -n "$REGION" ]           || { echo "ERRO: 'region' não definido."; exit 1; }
       [ -n "$PLAN" ]             || { echo "ERRO: 'state_plan' não definido."; exit 1; }
       [ -n "$SERVICE_ENDPOINT" ] || { echo "ERRO: 'state_service_endpoint_name' não definido."; exit 1; }
       [ -n "$COS_BUCKET" ]       || { echo "ERRO: 'state_bucket' não definido."; exit 1; }
-
+      
       slug                  =$(echo "$PROJ_RAW" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-50)
       env_lc                =$(echo "$ENV_RAW" | tr '[:upper:]' '[:lower:]')
       RG_NAME               ="rg-${slug}-${env_lc}"
       COS_ENDPOINT          ="s3.${COS_ENDPOINT_TYPE}.${REGION}.cloud-object-storage.appdomain.cloud"
       COS_INSTANCE_NAME     ="cos-${slug}-${env_lc}"
-
+      
       echo "Projeto:        $PROJ_RAW → $slug"
       echo "Ambiente:       $ENV_RAW  → $env_lc"
       echo "Resource Group: $RG_NAME"
@@ -37,7 +36,7 @@ steps:
       echo "Plano COS:      $PLAN"
       echo "Deployment COS: $SERVICE_ENDPOINT"
       echo "Endpoint COS:   $COS_ENDPOINT"
-
+      
       echo "🔧 Instalando IBM Cloud CLI (se necessário)..."
       if ! command -v ibmcloud >/dev/null 2>&1; then
         curl -fsSL https://clis.cloud.ibm.com/install/linux | sh
@@ -45,21 +44,22 @@ steps:
       if ! ibmcloud plugin list | grep -q 'cloud-object-storage'; then
         ibmcloud plugin install cloud-object-storage -f
       fi
-
+      
       echo "Login na IBM Cloud..."
       ibmcloud login --apikey "${IBMCLOUD-API-KEY}" -r "$REGION" -q
-
-      echo "Verificando se Resource Group '$RG_NAME' já existe..."
+      
+      echo "🔍 Validando se Resource Group '$RG_NAME' existe..."
       if ibmcloud resource groups | grep -q "$RG_NAME"; then
-        echo "Resource Group '$RG_NAME' já existe. Pulando criação."
+        echo "✅ Resource Group '$RG_NAME' existe."
       else
-        echo "Criando Resource Group: $RG_NAME"
-        ibmcloud resource group-create "$RG_NAME"
+        echo "❌ ERRO: Resource Group '$RG_NAME' NÃO existe!"
+        echo "Por favor, crie o Resource Group antes de executar este pipeline."
+        exit 1
       fi
-
+      
       echo "Target no Resource Group..."
       ibmcloud target -g "$RG_NAME"
-
+      
       echo "Verificando/instanciando serviço COS..."
       if ! ibmcloud resource service-instances --output json | jq -e ".[] | select(.name==\"$COS_INSTANCE_NAME\")" >/dev/null; then
         echo "Criando instância COS: $COS_INSTANCE_NAME (plano $PLAN)"
@@ -67,17 +67,48 @@ steps:
       else
         echo "Instância COS já existe: $COS_INSTANCE_NAME"
       fi
-
+      
       echo "⚙️ Configurando COS CLI..."
       COS_INSTANCE_CRN=$(ibmcloud resource service-instance "$COS_INSTANCE_NAME" --output json | jq -r '.[0].crn')
       ibmcloud cos config crn --crn "$COS_INSTANCE_CRN"
       ibmcloud cos config region --region "$REGION"
-
+      
+      echo "🔑 Capturando/criando Service Credentials (access key)..."
+      SERVICE_KEY_NAME="${COS_INSTANCE_NAME}-key"
+      
+      # Verifica se já existe uma service key
+      if ibmcloud resource service-keys --instance-name "$COS_INSTANCE_NAME" | grep -q "$SERVICE_KEY_NAME"; then
+        echo "Service key '$SERVICE_KEY_NAME' já existe."
+      else
+        echo "Criando service key: $SERVICE_KEY_NAME"
+        ibmcloud resource service-key-create "$SERVICE_KEY_NAME" Writer --instance-name "$COS_INSTANCE_NAME" --parameters '{"HMAC":true}'
+      fi
+      
+      # Captura as credenciais
+      echo "Extraindo access_key_id e secret_access_key..."
+      CREDENTIALS=$(ibmcloud resource service-key "$SERVICE_KEY_NAME" --output json)
+      ACCESS_KEY_ID=$(echo "$CREDENTIALS" | jq -r '.[0].credentials.cos_hmac_keys.access_key_id')
+      SECRET_ACCESS_KEY=$(echo "$CREDENTIALS" | jq -r '.[0].credentials.cos_hmac_keys.secret_access_key')
+      
+      if [ -z "$ACCESS_KEY_ID" ] || [ "$ACCESS_KEY_ID" = "null" ]; then
+        echo "❌ ERRO: Não foi possível obter access_key_id"
+        exit 1
+      fi
+      
+      echo "✅ Access Key capturada com sucesso!"
+      echo "Access Key ID: ${ACCESS_KEY_ID:0:10}..." # Mostra apenas parte da chave por segurança
+      
+      # Exporta como variáveis de ambiente para uso posterior
+      echo "##vso[task.setvariable variable=COS_ACCESS_KEY_ID;issecret=true]$ACCESS_KEY_ID"
+      echo "##vso[task.setvariable variable=COS_SECRET_ACCESS_KEY;issecret=true]$SECRET_ACCESS_KEY"
+      echo "##vso[task.setvariable variable=COS_ENDPOINT]$COS_ENDPOINT"
+      
       echo "Criando bucket: $COS_BUCKET (se necessário)..."
       if ! ibmcloud cos bucket-head --bucket "$COS_BUCKET" >/dev/null 2>&1; then
         ibmcloud cos bucket-create --bucket "$COS_BUCKET" --region "$REGION" --class smart
       else
         echo "Bucket já existe: $COS_BUCKET"
       fi
-
-      echo "Pré-requisitos finalizados com sucesso."
+      
+      echo "✅ Pré-requisitos finalizados com sucesso."
+      echo "Use as variáveis COS_ACCESS_KEY_ID, COS_SECRET_ACCESS_KEY e COS_ENDPOINT nas próximas tasks."
