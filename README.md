@@ -1,26 +1,3 @@
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: container-azm-ms-agentconfig
-  namespace: kube-system
-data:
-  schema-version: v1
-  config-version: ver1
-  log-data-collection-settings: |-
-    [log_collection_settings]
-       [log_collection_settings.stdout]
-          enabled = true
-          exclude_namespaces = ["kube-system", "gatekeeper-system"]
-       [log_collection_settings.stderr]
-          enabled = true
-          exclude_namespaces = ["kube-system", "gatekeeper-system"]
-       [log_collection_settings.env_var]
-          enabled = true
-       [log_collection_settings.enrich_container_logs]
-          enabled = true
-       [log_collection_settings.collect_all_kube_events]
-          enabled = false
-    [log_collection_settings.schema]
-       containerlog_schema_version = "v2"
-EOF
+https://accounts.azuredatabricks.net/user-management/groups?account_id=86fe7c6d-6f19-44da-9f00-e5356aa665ab
+
+matheusbusiness05_outlook.com#EXT#@matheusbusiness05outlook.onmicrosoft.com
