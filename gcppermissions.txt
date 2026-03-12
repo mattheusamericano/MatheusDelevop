@@ -1,0 +1,18 @@
+# 1. Pegar a lista de permissions válidas do GCP
+gcloud iam list-testable-permissions //cloudresourcemanager.googleapis.com/projects/prj-risco-sigrm-prd \
+  --format="value(name)" > permissions-validas.txt
+
+# 2. Filtrar seu arquivo mantendo só as válidas
+for perm in $(cat permissoes-sigrm.txt); do
+  if grep -qx "$perm" permissions-validas.txt; then
+    echo "$perm"
+  fi
+done > permissoes-filtradas.txt
+
+# 3. Verificar quantas sobraram
+wc -l permissoes-filtradas.txt
+
+# 4. Aplicar só as válidas
+gcloud iam roles update SIGRM_ANALISTA \
+  --project=prj-risco-sigrm-prd \
+  --add-permissions="$(cat permissoes-filtradas.txt | tr '\n' ','| sed 's/,$//')"
